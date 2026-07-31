@@ -27,6 +27,8 @@ public static class User32
 {
     public delegate int KeyboardHookProc(int code, int wParam, ref KeyboardHookStruct lParam);
 
+    public delegate int MouseHookProc(int code, int wParam, ref MouseHookStruct lParam);
+
     public delegate void WinEventProc(nint hWinEventHook, uint eventType, nint hwnd,
         int idObject, int idChild, uint idEventThread, uint dwmsEventTime);
 
@@ -43,10 +45,17 @@ public static class User32
         uint threadId);
 
     [DllImport("user32.dll")]
+    public static extern nint SetWindowsHookEx(int idHook, MouseHookProc callback, nint hInstance,
+        uint threadId);
+
+    [DllImport("user32.dll")]
     public static extern bool UnhookWindowsHookEx(nint hInstance);
 
     [DllImport("user32.dll")]
     public static extern int CallNextHookEx(nint idHook, int nCode, int wParam, ref KeyboardHookStruct lParam);
+
+    [DllImport("user32.dll")]
+    public static extern int CallNextHookEx(nint idHook, int nCode, int wParam, ref MouseHookStruct lParam);
 
     [DllImport("user32.dll")]
     public static extern nint SetWindowLong(nint hWnd, int nIndex, int dwNewLong);
@@ -137,6 +146,23 @@ public static class User32
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    public struct MouseHookStruct
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public nint dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {
         public int Left;
@@ -199,10 +225,12 @@ public static class User32
     public const uint SWP_ASYNCWINDOWPOS = 0x4000;
 
     public const int WH_KEYBOARD_LL = 13;
+    public const int WH_MOUSE_LL = 14;
     public const int WM_KEYDOWN = 0x100;
     public const int WM_KEYUP = 0x101;
     public const int WM_SYSKEYDOWN = 0x104;
     public const int WM_SYSKEYUP = 0x105;
+    public const int WM_MBUTTONDOWN = 0x0207;
 
     public const int GWL_STYLE = -16;
     public const int GWL_EXSTYLE = -20;

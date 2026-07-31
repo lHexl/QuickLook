@@ -46,6 +46,9 @@ project.fragment.lock.json
 artifacts/
 **/Properties/launchSettings.json
 
+# Repository-local SDKs and command-line tools
+/.tools/
+
 *_i.c
 *_p.c
 *_i.h
