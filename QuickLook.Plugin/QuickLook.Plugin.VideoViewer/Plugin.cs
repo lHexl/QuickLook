@@ -18,6 +18,7 @@
 extern alias MediaInfoWrapper;
 
 using MediaInfoWrapper::MediaInfo;
+using QuickLook.Common.Helpers;
 using QuickLook.Common.Plugin;
 using System;
 using System.Diagnostics;
