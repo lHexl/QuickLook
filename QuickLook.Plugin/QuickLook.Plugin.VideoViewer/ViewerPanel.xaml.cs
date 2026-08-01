@@ -15,11 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+extern alias MediaInfoWrapper;
+
+using MediaInfoWrapper::MediaInfo;
 using QuickLook.Common.Annotations;
 using QuickLook.Common.Helpers;
 using QuickLook.Common.Plugin;
-using QuickLook.MediaInfo;
-using QuickLook.MediaInfo.Core;
 using QuickLook.Plugin.VideoViewer.AudioTrack;
 using QuickLook.Plugin.VideoViewer.LyricTrack;
 using System;
@@ -293,7 +294,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         }
     }
 
-    private void UpdateMeta(string path, MediaInfoNative info)
+    private void UpdateMeta(string path, MediaInfoLib info)
     {
         if (HasVideo)
             return;
@@ -455,16 +456,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         }
     }
 
-    public void LoadAndPlay(string path, MediaInfoNative info)
+    public void LoadAndPlay(string path, MediaInfoLib info)
     {
-        // HasVideo is populated only after MediaOpened, so it cannot be used here
-        // to distinguish video from audio. MediaInfo has already opened the file in
-        // Plugin.CanHandle; use its stream data instead.
-        string videoCodec = info?.Get(StreamKind.Video, 0, "Format");
-        bool hasVideo = !string.IsNullOrWhiteSpace(videoCodec);
-
-        // Detect playback formats handled outside DirectShow.
-        if (!hasVideo)
+        // Detect whether it is other playback formats
+        if (!HasVideo)
         {
             string audioCodec = info?.Get(StreamKind.Audio, 0, "Format");
 
@@ -476,10 +471,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             }
         }
 
-        // Audio metadata may involve cover-art and lyrics extraction. Doing this
-        // for video delayed assigning Source and therefore delayed graph startup.
-        if (!hasVideo)
-            UpdateMeta(path, info);
+        UpdateMeta(path, info);
 
         // detect rotation
         _ = double.TryParse(info?.Get(StreamKind.Video, 0, "Rotation"), out var rotation);
