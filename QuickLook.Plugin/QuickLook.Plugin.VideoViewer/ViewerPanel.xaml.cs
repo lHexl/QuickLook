@@ -297,7 +297,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     private void PlayerStateChanged(PlayerState oldState, PlayerState newState)
     {
         PreviewPerformanceLogger.Mark(_context, "VideoPanel.PlayerStateChanged",
-            $"old={oldState}; new={newState}; position={mediaElement?.MediaPosition}; hasVideo={mediaElement?.HasVideo}");
+            $"old={oldState}; new={newState}");
         switch (newState)
         {
             case PlayerState.Playing:
