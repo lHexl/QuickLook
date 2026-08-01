@@ -457,8 +457,14 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     public void LoadAndPlay(string path, MediaInfoNative info)
     {
-        // Detect whether it is other playback formats
-        if (!HasVideo)
+        // HasVideo is populated only after MediaOpened, so it cannot be used here
+        // to distinguish video from audio. MediaInfo has already opened the file in
+        // Plugin.CanHandle; use its stream data instead.
+        string videoCodec = info?.Get(StreamKind.Video, 0, "Format");
+        bool hasVideo = !string.IsNullOrWhiteSpace(videoCodec);
+
+        // Detect playback formats handled outside DirectShow.
+        if (!hasVideo)
         {
             string audioCodec = info?.Get(StreamKind.Audio, 0, "Format");
 
@@ -470,7 +476,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             }
         }
 
-        UpdateMeta(path, info);
+        // Audio metadata may involve cover-art and lyrics extraction. Doing this
+        // for video delayed assigning Source and therefore delayed graph startup.
+        if (!hasVideo)
+            UpdateMeta(path, info);
 
         // detect rotation
         _ = double.TryParse(info?.Get(StreamKind.Video, 0, "Rotation"), out var rotation);
