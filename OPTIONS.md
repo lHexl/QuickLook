@@ -77,9 +77,9 @@ Example:
 ### `<AutoCloseHolding>`
 - Default: `True`
 - Type: `Boolean`
-- Description: Automatically close the preview window when the Space key is released after being held. When `True` (default), releasing Space after a long-press (≥750 ms) closes the preview. When `False`, the preview stays open on Space key release.
+- Description: Automatically close the preview window when the middle mouse button is released after being held. When `True` (default), releasing the middle mouse button after a long-press (≥750 ms) closes the preview. When `False`, the preview stays open after release.
 - Example:
-  - `<AutoCloseHolding>False</AutoCloseHolding>` to disable auto-close on Space release.
+  - `<AutoCloseHolding>False</AutoCloseHolding>` to disable auto-close when the middle mouse button is released.
 
 ### `<CloseOnLostFocus>`
 - Default: `False`

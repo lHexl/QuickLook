@@ -26,6 +26,8 @@ internal sealed class GlobalMouseHook : IDisposable
 
     internal event EventHandler MiddleButtonDown;
 
+    internal event EventHandler MiddleButtonUp;
+
     public void Dispose()
     {
         GC.SuppressFinalize(this);
@@ -43,6 +45,8 @@ internal sealed class GlobalMouseHook : IDisposable
     {
         if (code >= 0 && wParam == User32.WM_MBUTTONDOWN)
             MiddleButtonDown?.Invoke(this, EventArgs.Empty);
+        else if (code >= 0 && wParam == User32.WM_MBUTTONUP)
+            MiddleButtonUp?.Invoke(this, EventArgs.Empty);
 
         return User32.CallNextHookEx(_hook, code, wParam, ref data);
     }

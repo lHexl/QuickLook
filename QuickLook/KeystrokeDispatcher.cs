@@ -36,8 +36,12 @@ internal class KeystrokeDispatcher : IDisposable
     private nint _winEventHook;
     private User32.WinEventProc _winEventProc; // keep reference to prevent GC
     private bool _isPreviewRequest;
+    private bool _isMousePreviewRequest;
+    private bool _middleButtonIsDown;
+    private long _middleButtonHoldTick;
     private long _lastInvalidKeyPressTick;
 
+    private const long HOLD_TO_PREVIEW_DURATION = TimeSpan.TicksPerMillisecond * 750;
     private const long VALID_KEY_PRESS_DELAY = TimeSpan.TicksPerSecond * 1;
 
     protected KeystrokeDispatcher()
@@ -164,16 +168,37 @@ internal class KeystrokeDispatcher : IDisposable
     {
         _mouseHook = new GlobalMouseHook();
         _mouseHook.MiddleButtonDown += MiddleButtonDownEventHandler;
+        _mouseHook.MiddleButtonUp += MiddleButtonUpEventHandler;
     }
 
     private void MiddleButtonDownEventHandler(object sender, EventArgs e)
     {
-        var isValidWindow = NativeMethods.QuickLook.GetFocusedWindowType() !=
-                            NativeMethods.QuickLook.FocusedWindowType.Invalid;
-        isValidWindow |= WindowHelper.IsForegroundWindowBelongToSelf();
+        if (_middleButtonIsDown)
+            return;
 
-        if (isValidWindow)
+        _middleButtonHoldTick = DateTime.Now.Ticks;
+        _isMousePreviewRequest = NativeMethods.QuickLook.GetFocusedWindowType() !=
+                                 NativeMethods.QuickLook.FocusedWindowType.Invalid;
+        _isMousePreviewRequest |= WindowHelper.IsForegroundWindowBelongToSelf();
+
+        if (_isMousePreviewRequest)
+        {
             PipeServerManager.SendMessage(PipeMessages.Toggle);
+            _middleButtonIsDown = true;
+        }
+    }
+
+    private void MiddleButtonUpEventHandler(object sender, EventArgs e)
+    {
+        if (_isMousePreviewRequest && _middleButtonIsDown &&
+            DateTime.Now.Ticks - _middleButtonHoldTick >= HOLD_TO_PREVIEW_DURATION &&
+            SettingHelper.Get("AutoCloseHolding", true, "QuickLook"))
+        {
+            PipeServerManager.SendMessage(PipeMessages.Toggle);
+        }
+
+        _isMousePreviewRequest = false;
+        _middleButtonIsDown = false;
     }
 
     private void InstallKeyHook(KeyEventHandler downHandler, KeyEventHandler upHandler)

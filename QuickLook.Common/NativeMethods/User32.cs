@@ -231,6 +231,7 @@ public static class User32
     public const int WM_SYSKEYDOWN = 0x104;
     public const int WM_SYSKEYUP = 0x105;
     public const int WM_MBUTTONDOWN = 0x0207;
+    public const int WM_MBUTTONUP = 0x0208;
 
     public const int GWL_STYLE = -16;
     public const int GWL_EXSTYLE = -20;
