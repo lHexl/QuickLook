@@ -30,7 +30,6 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -39,7 +38,6 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using UtfUnknown;
-using WPFMediaKit.DirectShow.Controls;
 using WPFMediaKit.DirectShow.MediaPlayers;
 
 namespace QuickLook.Plugin.VideoViewer;
@@ -64,6 +62,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         _context = context;
         PreviewPerformanceLogger.Mark(_context, "VideoPanel.Constructor.Start");
         InitializeComponent();
+        mediaElement.PerformanceContext = _context;
         PreviewPerformanceLogger.Mark(_context, "VideoPanel.InitializeComponent.Completed",
             $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
         LoadAndInsertGlassLayer();
@@ -83,6 +82,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         mediaElement.MediaOpened += MediaOpened;
         mediaElement.MediaEnded += MediaEnded;
         mediaElement.MediaFailed += MediaFailed;
+        mediaElement.PlaybackStateChanged += HybridPlaybackStateChanged;
 
         ShouldLoop = SettingHelper.Get("ShouldLoop", false, "QuickLook.Plugin.VideoViewer");
         UseHardwareAcceleration = SettingHelper.Get("UseHardwareAcceleration", false, "QuickLook.Plugin.VideoViewer");
@@ -154,6 +154,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         {
             if (value == _shouldLoop) return;
             _shouldLoop = value;
+            if (mediaElement != null)
+                mediaElement.Loop = value;
             OnPropertyChanged();
         }
     }
@@ -193,12 +195,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         try
         {
             mediaElement?.Close();
-
-            Task.Run(() =>
-            {
-                mediaElement?.MediaUriPlayer.Dispose();
-                mediaElement = null;
-            });
+            mediaElement?.Dispose();
+            mediaElement = null;
         }
         catch (Exception e)
         {
@@ -239,10 +237,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         _context.IsBusy = false;
     }
 
-    private void MediaFailed(object sender, MediaFailedEventArgs e)
+    private void MediaFailed(object sender, HybridMediaFailedEventArgs e)
     {
         PreviewPerformanceLogger.Mark(_context, "VideoPanel.MediaFailed.Callback", e.Exception?.ToString());
-        ((MediaUriElement)sender).Dispatcher.BeginInvoke(new Action(() =>
+        Dispatcher.BeginInvoke(new Action(() =>
         {
             _context.ViewerContent = new TextBlock()
             {
@@ -310,6 +308,14 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
                 IsPlaying = false;
                 break;
         }
+    }
+
+    private void HybridPlaybackStateChanged(object sender, EventArgs e)
+    {
+        if (mediaElement?.IsUsingMediaFoundation != true)
+            return;
+
+        IsPlaying = mediaElement.IsPlaying;
     }
 
     private void UpdateMeta(string path, MediaInfoLib info)
@@ -463,6 +469,15 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         {
             var player = mediaElement?.MediaUriPlayer;
             if (player == null) return;
+
+            // Media Foundation selects hardware decoding through Windows. This
+            // switch only controls the DirectShow/LAV fallback backend.
+            if (mediaElement.IsUsingMediaFoundation)
+            {
+                player.Dispatcher.BeginInvoke(() =>
+                    player.EnableLAVHardwareAcceleration = enable);
+                return;
+            }
 
             if (mediaElement.Source == null)
             {
