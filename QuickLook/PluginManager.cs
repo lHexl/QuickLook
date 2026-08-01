@@ -67,6 +67,8 @@ public sealed class PluginManager
 
                     timer.Stop();
                     Debug.WriteLine($"{plugin.GetType()}: {can}, {timer.ElapsedMilliseconds}ms");
+                    PreviewPerformanceLogger.WriteGlobal("PluginManager.CanHandle",
+                        $"plugin={plugin.GetType().FullName}; matched={can}; duration={timer.Elapsed.TotalMilliseconds:F3}ms; path={path}");
                 }
                 catch (Exception)
                 {

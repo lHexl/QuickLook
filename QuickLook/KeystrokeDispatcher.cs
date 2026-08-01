@@ -173,8 +173,12 @@ internal class KeystrokeDispatcher : IDisposable
 
     private void MiddleButtonDownEventHandler(object sender, EventArgs e)
     {
+        PreviewPerformanceLogger.WriteGlobal("Input.MiddleButtonDown.Received");
         if (_middleButtonIsDown)
+        {
+            PreviewPerformanceLogger.WriteGlobal("Input.MiddleButtonDown.Ignored", "reason=alreadyDown");
             return;
+        }
 
         _middleButtonHoldTick = DateTime.Now.Ticks;
         _isMousePreviewRequest = NativeMethods.QuickLook.GetFocusedWindowType() !=
@@ -183,9 +187,13 @@ internal class KeystrokeDispatcher : IDisposable
 
         if (_isMousePreviewRequest)
         {
+            PreviewPerformanceLogger.WriteGlobal("Input.MiddleButtonDown.ToggleSending");
             PipeServerManager.SendMessage(PipeMessages.Toggle);
             _middleButtonIsDown = true;
+            PreviewPerformanceLogger.WriteGlobal("Input.MiddleButtonDown.ToggleSent");
         }
+        else
+            PreviewPerformanceLogger.WriteGlobal("Input.MiddleButtonDown.Ignored", "reason=invalidForegroundWindow");
     }
 
     private void MiddleButtonUpEventHandler(object sender, EventArgs e)

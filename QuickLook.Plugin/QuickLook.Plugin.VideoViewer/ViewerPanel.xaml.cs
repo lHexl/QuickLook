@@ -60,13 +60,18 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     public ViewerPanel(ContextObject context)
     {
+        var timer = Stopwatch.StartNew();
+        _context = context;
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.Constructor.Start");
         InitializeComponent();
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.InitializeComponent.Completed",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
         LoadAndInsertGlassLayer();
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.GlassLayer.Completed",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
 
         // apply global theme
         Resources.MergedDictionaries[0].MergedDictionaries.Clear();
-
-        _context = context;
 
         mediaElement.MediaUriPlayer.LAVFilterDirectory =
             IntPtr.Size == 8 ? @"LAVFilters-x64\" : @"LAVFilters-x86\";
@@ -84,6 +89,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         // Apply persisted HW/SW mode to the underlying player if supported.
         HardwareAccelerationModeChanged(UseHardwareAcceleration);
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.PlayerConfigured",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; hardwareAcceleration={UseHardwareAcceleration}; lav={mediaElement.MediaUriPlayer.LAVFilterDirectory}");
 
         string translationFile = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Translations.config");
         buttonPlayPause.ToolTip = TranslationHelper.Get("BTN_PlayPause", translationFile, failsafe: "Play/Pause");
@@ -91,6 +98,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         buttonHardwareAcceleration.ToolTip = TranslationHelper.Get("BTN_HardwareAcceleration", translationFile, failsafe: "Hardware/Software Decoding");
         buttonMute.ToolTip = TranslationHelper.Get("BTN_Volume", translationFile, failsafe: "Volume");
         buttonTime.ToolTip = TranslationHelper.Get("BTN_Time", translationFile, failsafe: "Time Elapsed/Remaining");
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.TranslationsLoaded",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
 
         buttonPlayPause.Click += TogglePlayPause;
         buttonLoop.Click += ToggleShouldLoop;
@@ -110,6 +119,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         };
 
         PreviewMouseWheel += (_, e) => ChangeVolume(e.Delta / 120d * 0.04d);
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.Constructor.Completed",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
     }
 
     private partial void LoadAndInsertGlassLayer();
@@ -172,6 +183,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     public void Dispose()
     {
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.Dispose.Start",
+            $"isPlaying={mediaElement?.IsPlaying}; position={mediaElement?.MediaPosition}");
         // old plugin use an int-typed "Volume" config key ranged from 0 to 100. Let's use a new one here.
         SettingHelper.Set("VolumeDouble", LinearVolume, "QuickLook.Plugin.VideoViewer");
         SettingHelper.Set("ShouldLoop", ShouldLoop, "QuickLook.Plugin.VideoViewer");
@@ -216,6 +229,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     private void MediaOpened(object o, RoutedEventArgs args)
     {
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.MediaOpened.Callback",
+            $"hasVideo={mediaElement?.HasVideo}; isPlaying={mediaElement?.IsPlaying}; position={mediaElement?.MediaPosition}");
         if (mediaElement == null)
             return;
 
@@ -226,6 +241,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     private void MediaFailed(object sender, MediaFailedEventArgs e)
     {
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.MediaFailed.Callback", e.Exception?.ToString());
         ((MediaUriElement)sender).Dispatcher.BeginInvoke(new Action(() =>
         {
             _context.ViewerContent = new TextBlock()
@@ -280,6 +296,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     private void PlayerStateChanged(PlayerState oldState, PlayerState newState)
     {
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.PlayerStateChanged",
+            $"old={oldState}; new={newState}; position={mediaElement?.MediaPosition}; hasVideo={mediaElement?.HasVideo}");
         switch (newState)
         {
             case PlayerState.Playing:
@@ -296,6 +314,9 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     private void UpdateMeta(string path, MediaInfoLib info)
     {
+        var timer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.UpdateMeta.Start",
+            $"HasVideoProperty={HasVideo}");
         if (HasVideo)
             return;
 
@@ -307,6 +328,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             var title = info.Get(StreamKind.General, 0, "Title");
             var artist = info.Get(StreamKind.General, 0, "Performer");
             var album = info.Get(StreamKind.General, 0, "Album");
+            PreviewPerformanceLogger.Mark(_context, "VideoPanel.UpdateMeta.BasicTags.Read",
+                $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
 
             metaTitle.Text = !string.IsNullOrWhiteSpace(title) ? title : Path.GetFileName(path);
             metaArtists.Text = artist;
@@ -316,6 +339,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             var coverData = info.Get(StreamKind.General, 0, "Cover_Data");
             var coverBytes = CoverDataExtractor.Extract(coverData);
             CoverArt = CoverDataExtractor.Extract(coverBytes);
+            PreviewPerformanceLogger.Mark(_context, "VideoPanel.UpdateMeta.CoverArt.Processed",
+                $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; bytes={coverBytes?.Length ?? 0}");
         }
         catch (Exception e)
         {
@@ -340,6 +365,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         if (File.Exists(lyricPath))
         {
+            PreviewPerformanceLogger.Mark(_context, "VideoPanel.UpdateMeta.SidecarLyrics.Found",
+                $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; path={lyricPath}");
             var buffer = File.ReadAllBytes(lyricPath);
             var encoding = CharsetDetector.DetectFromBytes(buffer).Detected?.Encoding ?? Encoding.Default;
 
@@ -350,6 +377,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             // Use embedded lyrics from MediaInfo if present.
             // Common tag: General/Lyrics (may contain LRC formatted content).
             var embeddedLyrics = info?.Get(StreamKind.General, 0, "Lyrics");
+            PreviewPerformanceLogger.Mark(_context, "VideoPanel.UpdateMeta.EmbeddedLyrics.Checked",
+                $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; present={!string.IsNullOrWhiteSpace(embeddedLyrics)}");
 
             // Only check whether the tag of lyrics is present by MediaInfo
             if (!string.IsNullOrWhiteSpace(embeddedLyrics))
@@ -389,6 +418,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         {
             metaLyric.Visibility = Visibility.Collapsed;
         }
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.UpdateMeta.Completed",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
     }
 
     public double LinearVolume
@@ -458,10 +489,14 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     public void LoadAndPlay(string path, MediaInfoLib info)
     {
+        var timer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.LoadAndPlay.Start", $"path={path}");
         // Detect whether it is other playback formats
         if (!HasVideo)
         {
             string audioCodec = info?.Get(StreamKind.Audio, 0, "Format");
+            PreviewPerformanceLogger.Mark(_context, "VideoPanel.LoadAndPlay.AudioFormat.Read",
+                $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; codec={audioCodec}");
 
             if (audioCodec?.Equals("MIDI", StringComparison.OrdinalIgnoreCase) ?? false)
             {
@@ -472,20 +507,32 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         }
 
         UpdateMeta(path, info);
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.LoadAndPlay.UpdateMeta.Returned",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
 
         // detect rotation
         _ = double.TryParse(info?.Get(StreamKind.Video, 0, "Rotation"), out var rotation);
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.LoadAndPlay.Rotation.Read",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; rotation={rotation}");
         // Correct rotation: on some machine the value "90" becomes "90000" by some reason
         if (rotation > 360d)
             rotation /= 1e3;
         if (Math.Abs(rotation) > 0.1d)
             mediaElement.LayoutTransform = new RotateTransform(rotation, 0.5d, 0.5d);
 
+        var sourceTimer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.Source.Assigning");
         mediaElement.Source = new Uri(path);
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.Source.SetterReturned",
+            $"setterDuration={sourceTimer.Elapsed.TotalMilliseconds:F3}ms; totalDuration={timer.Elapsed.TotalMilliseconds:F3}ms");
         // old plugin use an int-typed "Volume" config key ranged from 0 to 100. Let's use a new one here.
         LinearVolume = Math.Max(0d, Math.Min(1d, SettingHelper.Get("VolumeDouble", 1d, "QuickLook.Plugin.VideoViewer")));
 
+        var playTimer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.Play.Calling");
         mediaElement.Play();
+        PreviewPerformanceLogger.Mark(_context, "VideoPanel.Play.Returned",
+            $"callDuration={playTimer.Elapsed.TotalMilliseconds:F3}ms; totalDuration={timer.Elapsed.TotalMilliseconds:F3}ms");
     }
 
     [NotifyPropertyChangedInvocator]

@@ -142,8 +142,16 @@ public class ViewWindowManager : IDisposable
 
     public void InvokePreview(string path = null)
     {
+        var invokeTimer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.WriteGlobal("ViewWindowManager.InvokePreview.Start",
+            $"suppliedPath={path}; windowVisible={_viewerWindow.IsVisible}");
+
         if (string.IsNullOrEmpty(path))
+        {
             path = NativeMethods.QuickLook.GetCurrentSelection();
+            PreviewPerformanceLogger.WriteGlobal("ViewWindowManager.Selection.Resolved",
+                $"elapsed={invokeTimer.Elapsed.TotalMilliseconds:F3}ms; path={path}");
+        }
 
         if (string.IsNullOrEmpty(path))
             return;
@@ -165,8 +173,12 @@ public class ViewWindowManager : IDisposable
         RunFocusMonitor();
 
         var matchedPlugin = PluginManager.GetInstance().FindMatch(path);
+        PreviewPerformanceLogger.WriteGlobal("ViewWindowManager.PluginMatch.Completed",
+            $"elapsed={invokeTimer.Elapsed.TotalMilliseconds:F3}ms; plugin={matchedPlugin?.GetType().FullName}");
 
         BeginShowNewWindow(path, matchedPlugin);
+        PreviewPerformanceLogger.WriteGlobal("ViewWindowManager.BeginShowNewWindow.Returned",
+            $"elapsed={invokeTimer.Elapsed.TotalMilliseconds:F3}ms");
     }
 
     public void InvokePluginPreview(string plugin, string path = null)

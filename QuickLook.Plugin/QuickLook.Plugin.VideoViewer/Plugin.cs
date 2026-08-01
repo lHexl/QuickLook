@@ -20,6 +20,7 @@ extern alias MediaInfoWrapper;
 using MediaInfoWrapper::MediaInfo;
 using QuickLook.Common.Plugin;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -36,10 +37,13 @@ public sealed class Plugin : IViewer
 
     static Plugin()
     {
+        var timer = Stopwatch.StartNew();
         _mediaInfo = new MediaInfoLib(Path.Combine(
             Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
             Environment.Is64BitProcess ? @"MediaInfo-x64\" : @"MediaInfo-x86\"));
         _mediaInfo.Option("Cover_Data", "base64");
+        PreviewPerformanceLogger.WriteGlobal("VideoPlugin.StaticInitialization.Completed",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; process64Bit={Environment.Is64BitProcess}");
     }
 
     public void Init()
@@ -53,13 +57,19 @@ public sealed class Plugin : IViewer
 
     public bool CanHandle(string path)
     {
+        var timer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.WriteGlobal("VideoPlugin.CanHandle.Start", $"path={path}");
         if (!Directory.Exists(path))
         {
             try
             {
                 _mediaInfo.Open(path);
+                PreviewPerformanceLogger.WriteGlobal("VideoPlugin.CanHandle.MediaInfoOpen.Returned",
+                    $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; path={path}");
                 string videoCodec = _mediaInfo.Get(StreamKind.Video, 0, "Format");
                 string audioCodec = _mediaInfo.Get(StreamKind.Audio, 0, "Format");
+                PreviewPerformanceLogger.WriteGlobal("VideoPlugin.CanHandle.StreamDetection.Completed",
+                    $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; videoCodec={videoCodec}; audioCodec={audioCodec}");
                 // Note MediaInfo.Close seems to close the dll and you have to re-create the MediaInfo
                 //      object like in the static class constructor above. Any call to Get methods etc.
                 //      will result in a "Unable to load MediaInfo library" error.
@@ -86,12 +96,18 @@ public sealed class Plugin : IViewer
 
     public void Prepare(string path, ContextObject context)
     {
+        var timer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.Mark(context, "VideoPlugin.Prepare.Start");
         string videoCodec = _mediaInfo.Get(StreamKind.Video, 0, "Format");
+        PreviewPerformanceLogger.Mark(context, "VideoPlugin.Prepare.VideoFormat.Read",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; codec={videoCodec}");
         if (!string.IsNullOrWhiteSpace(videoCodec)) // video
         {
             int.TryParse(_mediaInfo.Get(StreamKind.Video, 0, "Width"), out var width);
             int.TryParse(_mediaInfo.Get(StreamKind.Video, 0, "Height"), out var height);
             double.TryParse(_mediaInfo.Get(StreamKind.Video, 0, "Rotation"), out var rotation);
+            PreviewPerformanceLogger.Mark(context, "VideoPlugin.Prepare.VideoGeometry.Read",
+                $"duration={timer.Elapsed.TotalMilliseconds:F3}ms; width={width}; height={height}; rotation={rotation}");
 
             // Correct rotation: on some machine the value "90" becomes "90000" by some reason
             if (rotation > 360)
@@ -123,17 +139,27 @@ public sealed class Plugin : IViewer
         }
 
         context.TitlebarOverlap = true;
+        PreviewPerformanceLogger.Mark(context, "VideoPlugin.Prepare.Completed",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
     }
 
     public void View(string path, ContextObject context)
     {
+        var timer = Stopwatch.StartNew();
+        PreviewPerformanceLogger.Mark(context, "VideoPlugin.View.Start");
         _vp = new ViewerPanel(context);
+        PreviewPerformanceLogger.Mark(context, "VideoPlugin.View.ViewerPanelConstructed",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
 
         context.ViewerContent = _vp;
+        PreviewPerformanceLogger.Mark(context, "VideoPlugin.View.ContentAssigned",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
 
         context.Title = $"{Path.GetFileName(path)}";
 
         _vp.LoadAndPlay(path, _mediaInfo);
+        PreviewPerformanceLogger.Mark(context, "VideoPlugin.View.LoadAndPlayReturned",
+            $"duration={timer.Elapsed.TotalMilliseconds:F3}ms");
     }
 
     public void Cleanup()

@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+using QuickLook.Common.Helpers;
 using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -160,6 +161,7 @@ public class PipeServerManager : IDisposable
                 return false;
 
             case PipeMessages.Toggle:
+                PreviewPerformanceLogger.WriteGlobal("Pipe.Toggle.Received", $"path={path}; option={option}");
                 _lastOperation = Application.Current.Dispatcher.BeginInvoke(
                     new Action(() => ViewWindowManager.GetInstance().TogglePreview(path, option)),
                     DispatcherPriority.Normal);

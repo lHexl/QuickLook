@@ -279,14 +279,20 @@ public partial class ViewerWindow
         Plugin = matchedPlugin;
 
         ContextObject.Reset();
+        PreviewPerformanceLogger.Begin(ContextObject, path, matchedPlugin?.GetType().FullName);
+        PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.BeginShow.ContextReset");
 
         // Assign monitor color profile
         ContextObject.ColorProfileName = DisplayDeviceHelper.GetMonitorColorProfileFromWindow(this);
+        PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.ColorProfileReady",
+            $"profile={ContextObject.ColorProfileName}");
 
         // Get window size before showing it
         try
         {
             Plugin.Prepare(path, ContextObject);
+            PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.PluginPrepare.Completed",
+                $"size={ContextObject.PreferredSize.Width}x{ContextObject.PreferredSize.Height}");
         }
         catch (Exception e)
         {
@@ -324,6 +330,8 @@ public partial class ViewerWindow
             _ignoreNextWindowSizeChange = true;
 
         PositionWindow(newSize);
+        PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.PositionWindow.Completed",
+            $"visibleBeforeShow={IsVisible}; size={newSize.Width}x{newSize.Height}");
 
         if (!IsVisible)
         {
@@ -337,6 +345,8 @@ public partial class ViewerWindow
                 this.ShowWithoutTransition();
             else
                 Show();
+            PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.Show.Returned",
+                $"actualVisible={IsVisible}");
         }
 
         if (_autoReload && File.Exists(path))
@@ -355,12 +365,15 @@ public partial class ViewerWindow
         // Load plugin, do not block UI
         Dispatcher.BeginInvoke(() =>
         {
+            PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.PluginView.DispatcherStarted");
             try
             {
                 // Avoid main thread scheduling lag
                 if (Plugin is null) return;
 
                 Plugin.View(path, ContextObject);
+                PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.PluginView.Returned",
+                    $"content={ContextObject.ViewerContent?.GetType().FullName}");
 
                 // Initial the more menu
                 ClearMoreMenuUnpin();
@@ -385,6 +398,7 @@ public partial class ViewerWindow
                         }
                     }
                 }
+                PreviewPerformanceLogger.Mark(ContextObject, "ViewerWindow.MoreMenu.Completed");
             }
             catch (Exception e)
             {
