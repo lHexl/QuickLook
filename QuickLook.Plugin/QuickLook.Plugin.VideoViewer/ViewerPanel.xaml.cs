@@ -55,6 +55,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     private bool _wasPlaying;
     private bool _shouldLoop;
     private bool _useHardwareAcceleration;
+    private bool _disposed;
 
     public ViewerPanel(ContextObject context)
     {
@@ -185,6 +186,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         PreviewPerformanceLogger.Mark(_context, "VideoPanel.Dispose.Start",
             $"isPlaying={mediaElement?.IsPlaying}; position={mediaElement?.MediaPosition}");
         // old plugin use an int-typed "Volume" config key ranged from 0 to 100. Let's use a new one here.
@@ -194,6 +199,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         try
         {
+            if (mediaElement != null)
+                mediaElement.MediaUriPlayer.PlayerStateChanged -= PlayerStateChanged;
             mediaElement?.Close();
             mediaElement?.Dispose();
             mediaElement = null;
@@ -294,6 +301,18 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
     private void PlayerStateChanged(PlayerState oldState, PlayerState newState)
     {
+        if (_disposed)
+            return;
+
+        // WPFMediaKit raises PlayerStateChanged on the DirectShow graph thread.
+        // PropertyChanged is consumed by WPF bindings and must be raised on the
+        // control's dispatcher thread.
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(() => PlayerStateChanged(oldState, newState)));
+            return;
+        }
+
         PreviewPerformanceLogger.Mark(_context, "VideoPanel.PlayerStateChanged",
             $"old={oldState}; new={newState}");
         switch (newState)

@@ -31,6 +31,9 @@ public static class PreviewPerformanceLogger
         if (context == null) return;
 
         Traces.Remove(context);
+        if (!DiagnosticLogging.IsEnabled)
+            return;
+
         var trace = new TraceState { Id = Interlocked.Increment(ref _nextTraceId) };
         Traces.Add(context, trace);
         Enqueue(trace, "BEGIN", $"path={path}; plugin={plugin}; process={Process.GetCurrentProcess().Id}; os={Environment.OSVersion}");
@@ -38,6 +41,9 @@ public static class PreviewPerformanceLogger
 
     public static void Mark(ContextObject context, string stage, string details = null)
     {
+        if (!DiagnosticLogging.IsEnabled)
+            return;
+
         if (context != null && Traces.TryGetValue(context, out var trace))
             Enqueue(trace, stage, details);
         else
@@ -46,6 +52,9 @@ public static class PreviewPerformanceLogger
 
     public static void WriteGlobal(string stage, string details = null)
     {
+        if (!DiagnosticLogging.IsEnabled)
+            return;
+
         PendingLines.Enqueue(
             $"{DateTime.Now:O} [PreviewPerf] trace=- elapsed=- thread={Environment.CurrentManagedThreadId} stage={stage}" +
             (string.IsNullOrWhiteSpace(details) ? string.Empty : $"; {details}"));
@@ -54,6 +63,9 @@ public static class PreviewPerformanceLogger
 
     private static void Enqueue(TraceState trace, string stage, string details)
     {
+        if (!DiagnosticLogging.IsEnabled)
+            return;
+
         PendingLines.Enqueue(
             $"{DateTime.Now:O} [PreviewPerf] trace={trace.Id} elapsed={trace.Stopwatch.Elapsed.TotalMilliseconds:F3}ms " +
             $"thread={Environment.CurrentManagedThreadId} stage={stage}" +
@@ -63,6 +75,12 @@ public static class PreviewPerformanceLogger
 
     private static void ScheduleWriter()
     {
+        if (!DiagnosticLogging.IsEnabled)
+        {
+            DiscardPendingLines();
+            return;
+        }
+
         if (Interlocked.CompareExchange(ref _writerScheduled, 1, 0) == 0)
             _ = Task.Run(DrainQueue);
     }
@@ -71,13 +89,22 @@ public static class PreviewPerformanceLogger
     {
         try
         {
+            if (!DiagnosticLogging.IsEnabled)
+            {
+                DiscardPendingLines();
+                return;
+            }
+
             var logPath = Path.Combine(SettingHelper.LocalDataPath, "QuickLook.Performance.log");
             Directory.CreateDirectory(Path.GetDirectoryName(logPath));
 
             using var writer = new StreamWriter(
                 new FileStream(logPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite));
-            while (PendingLines.TryDequeue(out var line))
+            while (DiagnosticLogging.IsEnabled && PendingLines.TryDequeue(out var line))
                 writer.WriteLine(line);
+
+            if (!DiagnosticLogging.IsEnabled)
+                DiscardPendingLines();
         }
         catch (Exception e)
         {
@@ -86,8 +113,15 @@ public static class PreviewPerformanceLogger
         finally
         {
             Interlocked.Exchange(ref _writerScheduled, 0);
-            if (!PendingLines.IsEmpty)
+            if (DiagnosticLogging.IsEnabled && !PendingLines.IsEmpty)
                 ScheduleWriter();
+        }
+    }
+
+    private static void DiscardPendingLines()
+    {
+        while (PendingLines.TryDequeue(out _))
+        {
         }
     }
 }

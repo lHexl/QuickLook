@@ -70,6 +70,11 @@ internal partial class TrayIconManager : IDisposable
                     Header = TranslationHelper.Get("Icon_OpenDataFolder"),
                     Command = new RelayCommand(() => Process.Start("explorer.exe", SettingHelper.LocalDataPath)),
                 },
+                new TrayMenuItem()
+                {
+                    Header = TranslationHelper.Get("Settings_Title", failsafe: "Settings"),
+                    Command = new RelayCommand(() => SettingsWindow.ShowSettings()),
+                },
                 _itemAutorun = new TrayMenuItem()
                 {
                     Header = TranslationHelper.Get("Icon_RunAtStartup"),

@@ -158,7 +158,7 @@ public partial class ViewerWindow : Window
 
         moreItemOpenSettings.Click += (_, _) =>
         {
-            Toast.Warning("Coming soon...");
+            SettingsWindow.ShowSettings();
         };
 
         // Set UI translations
@@ -170,6 +170,7 @@ public partial class ViewerWindow : Window
         buttonMore.ToolTip = TranslationHelper.Get("MW_More", failsafe: "More");
         moreItemReload.Header = TranslationHelper.Get("MW_Reload");
         moreItemCopyAsPath.Header = TranslationHelper.Get("InfoPanelMoreItem_CopyAsPath");
+        moreItemOpenSettings.Header = TranslationHelper.Get("Settings_Title", failsafe: "Settings");
     }
 
     public new void Close()

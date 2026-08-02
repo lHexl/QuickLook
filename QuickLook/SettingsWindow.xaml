@@ -1,0 +1,60 @@
+<Window x:Class="QuickLook.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Width="520"
+        SizeToContent="Height"
+        MinHeight="230"
+        MaxHeight="420"
+        Background="{DynamicResource MainWindowBackgroundNoTransparent}"
+        Foreground="{DynamicResource WindowTextForeground}"
+        ResizeMode="NoResize"
+        ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/QuickLook.Common;component/Styles/MainWindowStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="14" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="settingsHeader"
+                   FontSize="22"
+                   FontWeight="SemiBold" />
+
+        <Border Grid.Row="2"
+                Padding="16"
+                Background="{DynamicResource CaptionButtonHoverBackground}"
+                BorderBrush="{DynamicResource CaptionTextHoverBorder}"
+                BorderThickness="1"
+                CornerRadius="6">
+            <CheckBox x:Name="diagnosticLoggingToggle"
+                      HorizontalContentAlignment="Stretch"
+                      VerticalContentAlignment="Center">
+                <StackPanel Margin="8,0,0,0">
+                    <TextBlock x:Name="diagnosticLoggingTitle"
+                               FontSize="14"
+                               FontWeight="SemiBold" />
+                    <TextBlock x:Name="diagnosticLoggingDescription"
+                               Margin="0,5,0,0"
+                               Foreground="{DynamicResource WindowTextForegroundAlternative}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </CheckBox>
+        </Border>
+
+        <TextBlock x:Name="logLocationText"
+                   Grid.Row="4"
+                   Foreground="{DynamicResource WindowTextForegroundAlternative}"
+                   TextWrapping="Wrap" />
+    </Grid>
+</Window>

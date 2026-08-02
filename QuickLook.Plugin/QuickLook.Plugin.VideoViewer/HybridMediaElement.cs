@@ -46,10 +46,12 @@ public sealed class HybridMediaElement : Grid, IDisposable
     private MediaEngineNotifyDelegate _mediaEngineNotify;
     private Uri _source;
     private Uri _loadedMediaFoundationSource;
-    private bool _usingMediaFoundation;
+    private volatile bool _usingMediaFoundation;
     private bool _mediaFoundationOpened;
     private bool _mediaFoundationInitializationFailed;
     private bool _mediaFoundationIsPlaying;
+    private volatile bool _directShowOpened;
+    private volatile bool _directShowIsPlaying;
     private bool _playRequested;
     private bool _loop;
     private bool _disposed;
@@ -78,6 +80,7 @@ public sealed class HybridMediaElement : Grid, IDisposable
         _directShowElement.MediaOpened += DirectShowMediaOpened;
         _directShowElement.MediaEnded += DirectShowMediaEnded;
         _directShowElement.MediaFailed += DirectShowMediaFailed;
+        _directShowElement.MediaUriPlayer.PlayerStateChanged += DirectShowPlayerStateChanged;
 
         _positionTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -114,7 +117,7 @@ public sealed class HybridMediaElement : Grid, IDisposable
         }
     }
 
-    public bool IsPlaying => _usingMediaFoundation ? _mediaFoundationIsPlaying : _directShowElement.IsPlaying;
+    public bool IsPlaying => _usingMediaFoundation ? _mediaFoundationIsPlaying : _directShowIsPlaying;
 
     public bool HasVideo { get; private set; }
 
@@ -162,7 +165,11 @@ public sealed class HybridMediaElement : Grid, IDisposable
 
         if (!_usingMediaFoundation)
         {
-            _directShowElement.Play();
+            // MediaUriElement opens the graph asynchronously. Calling Play
+            // before MediaOpened can leave the fallback in a false Playing
+            // state with position 0, so remember the request and start later.
+            if (_directShowOpened)
+                _directShowElement.Play();
             return;
         }
 
@@ -180,7 +187,7 @@ public sealed class HybridMediaElement : Grid, IDisposable
 
         if (_usingMediaFoundation)
             PauseMediaFoundation();
-        else
+        else if (_directShowOpened)
             _directShowElement.Pause();
     }
 
@@ -193,6 +200,8 @@ public sealed class HybridMediaElement : Grid, IDisposable
         _usingMediaFoundation = false;
         _mediaFoundationOpened = false;
         _mediaFoundationIsPlaying = false;
+        _directShowOpened = false;
+        _directShowIsPlaying = false;
         _loadedMediaFoundationSource = null;
         HasVideo = false;
         MediaDuration = 0L;
@@ -358,9 +367,10 @@ public sealed class HybridMediaElement : Grid, IDisposable
             _mediaFoundationOpened = false;
             _mediaFoundationIsPlaying = false;
             HasVideo = false;
+            string mediaFoundationSource = GetMediaFoundationSource(source);
             PreviewPerformanceLogger.Mark(PerformanceContext, "VideoPanel.MediaFoundation.Source.Assigning",
-                $"uri={source.AbsoluteUri}");
-            _mediaEngine.Source = source.AbsoluteUri;
+                $"source={mediaFoundationSource}");
+            _mediaEngine.Source = mediaFoundationSource;
             _mediaEngine.Load();
             PreviewPerformanceLogger.Mark(PerformanceContext, "VideoPanel.MediaFoundation.Load.Returned");
 
@@ -372,6 +382,17 @@ public sealed class HybridMediaElement : Grid, IDisposable
             _loadedMediaFoundationSource = null;
             OpenWithDirectShow(source, $"open: {exception.Message}");
         }
+    }
+
+    private static string GetMediaFoundationSource(Uri source)
+    {
+        // IMFMediaEngine ultimately passes this value to the Media Foundation
+        // source resolver. Uri.AbsoluteUri percent-encodes non-ASCII path
+        // segments (for example, Cyrillic as %D0...), which the resolver on
+        // some Windows versions treats as a literal filesystem path and then
+        // reports ERROR_PATH_NOT_FOUND. It accepts a Unicode local path in the
+        // BSTR directly, preserving every filename character and UNC paths.
+        return source.IsFile ? source.LocalPath : source.AbsoluteUri;
     }
 
     private void MediaFoundationEvent(MediaEngineEvent mediaEngineEvent, long param1, int param2)
@@ -516,6 +537,8 @@ public sealed class HybridMediaElement : Grid, IDisposable
         _usingMediaFoundation = false;
         _mediaFoundationOpened = false;
         _mediaFoundationIsPlaying = false;
+        _directShowOpened = false;
+        _directShowIsPlaying = false;
         _loadedMediaFoundationSource = null;
         _positionTimer.Stop();
         PauseMediaFoundation();
@@ -523,8 +546,6 @@ public sealed class HybridMediaElement : Grid, IDisposable
         _directShowElement.Visibility = Visibility.Visible;
         _directShowElement.Volume = _volume;
         _directShowElement.Source = source;
-        if (_playRequested)
-            _directShowElement.Play();
         PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -583,22 +604,45 @@ public sealed class HybridMediaElement : Grid, IDisposable
         if (_usingMediaFoundation)
             return;
 
+        _directShowOpened = true;
         HasVideo = _directShowElement.HasVideo;
         MediaDuration = _directShowElement.MediaDuration;
         _positionTimer.Start();
+        PreviewPerformanceLogger.Mark(PerformanceContext, "VideoPanel.DirectShow.MediaOpened",
+            $"duration={MediaDuration}; hasVideo={HasVideo}");
         MediaOpened?.Invoke(this, e);
+
+        if (_playRequested)
+            _directShowElement.Play();
     }
 
     private void DirectShowMediaEnded(object sender, RoutedEventArgs e)
     {
-        if (!_usingMediaFoundation)
-            MediaEnded?.Invoke(this, e);
+        if (_usingMediaFoundation)
+            return;
+
+        _directShowIsPlaying = false;
+        MediaEnded?.Invoke(this, e);
     }
 
     private void DirectShowMediaFailed(object sender, WPFMediaKit.DirectShow.MediaPlayers.MediaFailedEventArgs e)
     {
         if (!_usingMediaFoundation)
+        {
+            _directShowOpened = false;
+            _directShowIsPlaying = false;
+            PreviewPerformanceLogger.Mark(PerformanceContext, "VideoPanel.DirectShow.MediaFailed",
+                e.Exception?.ToString());
             MediaFailed?.Invoke(this, new HybridMediaFailedEventArgs(e.Exception));
+        }
+    }
+
+    private void DirectShowPlayerStateChanged(PlayerState oldState, PlayerState newState)
+    {
+        // WPFMediaKit raises this event from its graph worker. Only update
+        // thread-safe state here; ViewerPanel marshals UI notifications to its
+        // dispatcher separately.
+        _directShowIsPlaying = !_usingMediaFoundation && _directShowOpened && newState == PlayerState.Playing;
     }
 
     private void ReleaseMediaFoundationEngine()
@@ -639,6 +683,7 @@ public sealed class HybridMediaElement : Grid, IDisposable
         _directShowElement.MediaOpened -= DirectShowMediaOpened;
         _directShowElement.MediaEnded -= DirectShowMediaEnded;
         _directShowElement.MediaFailed -= DirectShowMediaFailed;
+        _directShowElement.MediaUriPlayer.PlayerStateChanged -= DirectShowPlayerStateChanged;
         _mediaFoundationHost.HandleCreated -= MediaFoundationHostHandleCreated;
         _mediaFoundationHost.HandleDestroyed -= MediaFoundationHostHandleDestroyed;
         _mediaFoundationHost.SizeChanged -= MediaFoundationHostSizeChanged;

@@ -142,11 +142,10 @@
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Copy}" />
                                     </MenuItem.Icon>
                                 </MenuItem>
-                                <Separator Tag="PinMenu" Visibility="Collapsed" />
+                                <Separator Tag="PinMenu" />
                                 <MenuItem x:Name="moreItemOpenSettings"
                                           Header="Settings"
-                                          Tag="PinMenu"
-                                          Visibility="Collapsed">
+                                          Tag="PinMenu">
                                     <MenuItem.Icon>
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Settings}" />
                                     </MenuItem.Icon>

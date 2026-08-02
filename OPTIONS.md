@@ -31,6 +31,13 @@ Example:
 - Example:
   - `<ShowTrayIcon>False</ShowTrayIcon>` to hide the tray icon.
 
+### `<EnableDiagnosticLogging>`
+- Default: `False`
+- Type: `Boolean`
+- Description: Write detailed performance and exception diagnostics to `QuickLook.Performance.log` and `QuickLook.Exception.log`. This option can also be changed from the QuickLook settings window and takes effect immediately.
+- Example:
+  - `<EnableDiagnosticLogging>True</EnableDiagnosticLogging>` to enable diagnostic log files temporarily.
+
 ### `<UseTransparency>`
 - Default: `True`
 - Type: `Boolean`

@@ -75,6 +75,9 @@ public static class ProcessHelper
 
     public static void WriteLog(string msg)
     {
+        if (!DiagnosticLogging.IsEnabled)
+            return;
+
         Debug.WriteLine(msg);
 
         var logFilePath = Path.Combine(SettingHelper.LocalDataPath, @"QuickLook.Exception.log");

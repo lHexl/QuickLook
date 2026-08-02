@@ -337,6 +337,12 @@ public partial class ViewerWindow
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
+                // The user can close the preview before this Render-priority
+                // callback runs. Do not recreate a native handle for a WPF
+                // Window that has already been closed.
+                if (!IsVisible)
+                    return;
+
                 this.BringToFront(Topmost);
                 if (SettingHelper.Get("FocusWindowOnOpen", false))
                     Activate();
